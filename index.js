@@ -1,5 +1,7 @@
 const express = require('express');
 const fs = require('fs');
+const axios = require('axios');
+const { auth,requiresAuth } = require('express-openid-connect');
 require('dotenv').config();
 const csv = require('csv-parser');
 const bodyParser = require('body-parser');
@@ -10,9 +12,19 @@ const swaggerJSDoc = require('swagger-jsdoc');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
 const { url } = require('inspector');
+const { log } = require('console');
 const connectionString = process.env.ATLAS_URI || "";
 
-
+const config = {
+  authRequired: false,
+  auth0Logout: true,
+  secret: process.env.SECRET,
+  baseURL: 'https://fooditemsapi.onrender.com/',
+  clientID: process.env.CLIENTID,
+  issuerBaseURL: process.env.ISSUERBASEURL,
+  authorizationParams: {redirect_uri:'/api-docs/'}
+  
+};
 let db;
 async function connect(){
   const client = new MongoClient(connectionString);
@@ -68,6 +80,8 @@ const swaggerOptions = {
           bearerFormat: 'JWT',
         },
       },
+      xSummary: '[Authorize](https://example.com/authorize) - Test authorization by clicking the link and providing a valid JWT token.',
+    
     },
   },
   // Path to the API routes files
@@ -87,30 +101,43 @@ var a = 0;
 const app = express();
 
 
+app.use(auth(config));
 
+
+
+app.get('/hello',(req,res)=>{
+  res.send(req.oidc.user)
+})
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 10, // maximum of 10 requests per minute
+  max: 100, // maximum of 10 requests per minute
 });
+function isTokenExpired(expiration) {
+  const now = Date.now() / 1000; // Convert current time to seconds
+  return expiration < now;
+}
 
 app.use(limiter);
 
+
+
 const JWT_SECRET = 'your-secret-key';
-const JWT_EXPIRATION = '1h';
+const JWT_EXPIRATION = '1hr';
 
 function authorizationMiddleware(req, res, next) {
   const authHeader = req.headers.authorization;
-  console.log(authHeader)
+  // console.log(authHeader)
 
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  if (!authHeader ) {
     return res.status(401).json({ message: 'Invalid authorization header' });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split(' ')[1]
+  console.log(token)
 
 
   try {
@@ -124,24 +151,73 @@ function authorizationMiddleware(req, res, next) {
 function generateAccessToken(username) {
   return jwt.sign({ username: username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 }
+app.get('/api/generatetoken', async (req, res) => {
+  let userId = req?.oidc?.user?.sid;
+  console.log(userId)
+  if(!userId){
+    console.log("gu");
+    res.send(" not logged in , login at - https://fooditemsapi.onrender.com/login")
+    // res.status(404).json({message:"user id not found"})
+    return
+  }
+  console.log(userId)
 
-
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-
-  // Perform authentication logic here, e.g., validate username and password
-  console.log(username)
-  if (username === 'admin' && password === 'password') {
-    const accessToken = generateAccessToken(username);
-    res.json({ accessToken: accessToken });
+  // Check if the user already has an existing token in the database
+  const existingToken = await db.collection('tokens').findOne({ userId });
+  // let existingToken;
+  if (existingToken && !isTokenExpired(existingToken.expiration)) {
+    // User has an existing valid token, return it
+    res.json({accessToken:existingToken})
   } else {
-    res.status(401).json({ message: 'Invalid credentials' });
+    // User does not have an existing token or the existing token has expired
+    const user = {
+      id: userId,
+      username: 'exampleuser',
+      role: 'admin',
+    };
+
+    // Generate a new token
+    const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
+
+    // Store the new token in the database
+    await db.collection('tokens').updateOne(
+      { userId },
+      { $set: { token, expiration: (Date.now() / 1000)+3600 } },
+      { upsert: true }
+    );
+   
+    res.json({accessToken:token})
   }
 });
 
 
+
+
+
 /**
  * @swagger
+ * /api/generatetoken:
+ *   get:
+ *     summary: Authenticate user and generate access token
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: User authenticated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               properties:
+ *                 accessToken:
+ *                   type: string
+ *       401:
+ *         description: Invalid credentials
+ *       500:
+ *         description: Server error
+ * 
+ * 
+ * 
+ * 
+ * 
  * tags:
  *   name: Food Items
  *   description: API for managing food items
@@ -258,38 +334,6 @@ app.post('/login', (req, res) => {
  *       500:
  *         description: Server error
  * 
- * /login:
- *   post:
- *     summary: Authenticate user and generate access token
- *     tags: [Authentication]
- *     requestBody:
- *       required: true
- *       content:
- *         application/x-www-form-urlencoded:
- *           schema:
- *             type: object
- *             properties:
- *               username:
- *                 type: string
- *               password:
- *                 type: string
- *             required:
- *               - username
- *               - password
- *     responses:
- *       200:
- *         description: User authenticated successfully
- *         content:
- *           application/json:
- *             schema:
- *               properties:
- *                 accessToken:
- *                   type: string
- *       401:
- *         description: Invalid credentials
- *       500:
- *         description: Server error
-
  */
 
 
