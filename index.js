@@ -9,6 +9,7 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerJSDoc = require('swagger-jsdoc');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
+const { url } = require('inspector');
 const connectionString = process.env.ATLAS_URI || "";
 
 
@@ -52,7 +53,12 @@ const swaggerOptions = {
     // Base path for API endpoints
     servers: [{
       url :'http://localhost:3000/'
-    }]
+
+    },
+  {
+    url:'https://fooditemsapi.onrender.com/',
+  }
+]
     ,
     components: {
       securitySchemes: {
