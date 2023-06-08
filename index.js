@@ -151,7 +151,7 @@ function authorizationMiddleware(req, res, next) {
 function generateAccessToken(username) {
   return jwt.sign({ username: username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 }
-app.get('/api/generatetoken', async (req, res) => {
+app.get('/generatetoken', async (req, res) => {
   let userId = req?.oidc?.user?.sid;
   console.log(userId)
   if(!userId){
@@ -198,7 +198,7 @@ app.get('/profile',(req,res)=>{
 
 /**
  * @swagger
- * /api/generatetoken:
+ * /generatetoken:
  *   get:
  *     summary: Authenticate user and generate access token
  *     tags: [Authentication]
