@@ -189,7 +189,9 @@ app.get('/api/generatetoken', async (req, res) => {
     res.json({accessToken:token})
   }
 });
-
+app.get('/profile',(req,res)=>{
+    res.send(req.oidc.user)
+})
 
 
 
