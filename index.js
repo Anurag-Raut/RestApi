@@ -101,7 +101,7 @@ app.use(limiter);
 
 
 
-const JWT_SECRET = 'your-secret-key';
+const JWT_SECRET = process.env.JWTSECRET;
 const JWT_EXPIRATION = '1hr';
 
 function authorizationMiddleware(req, res, next) {
