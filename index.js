@@ -28,9 +28,7 @@ async function connect() {
   if (conn) {
     console.log('Connected to MongoDB');
     db = conn.db('foodItemsAPI');
-    // const totalItems = await db.collection('foo').countDocuments();
-    // console.log(totalItems)
-    // Additional initialization or logic can be performed here
+   
   }
 }
 
@@ -140,10 +138,9 @@ app.post('/generatetoken', async (req, res) => {
   const existingToken = await db.collection('tokens').findOne({ username });
 
   if (existingToken && !isTokenExpired(existingToken.expiration)) {
-    // User has an existing valid token, return it
+ 
     res.json({ accessToken: existingToken.token });
   } else {
-    // User does not have an existing token or the existing token has expired
     const token = generateAccessToken(username);
     const expiration = (Date.now() / 1000) + 3600; // Set token expiration to 1 hour from now
 
@@ -324,7 +321,7 @@ app.get('/foodItems', authorizationMiddleware, async (req, res) => {
 
   let collection = await db.collection("foodItems");
   
-  // Retrieve paginated food items from MongoDB
+ 
   const foodItems = await collection.find()
   .sort({ _id: 1 })
     .skip(startIndex)
@@ -337,17 +334,17 @@ app.get('/foodItems', authorizationMiddleware, async (req, res) => {
   res.json({
     page: page,
     limit: limit,
-    totalItems: foodItems.length,
-    totalPages: Math.ceil(foodItems.length / limit),
+    totalItems: totalItems.length,
+    totalPages: Math.ceil(totalItems.length / limit),
     data: foodItems,
   });
 });
 
 app.get('/foodItems/:id', authorizationMiddleware, async (req, res) => {
   const itemId = parseInt(req.params.id);
-  let collection = await db.collection("order");
+  let collection = await db.collection("foodItems");
 
-  // Find a food item by ID from MongoDB
+
   const item = await collection.findOne({ _id: itemId });
 
   if (item) {
