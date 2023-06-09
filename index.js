@@ -12,45 +12,29 @@ const swaggerJSDoc = require('swagger-jsdoc');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
 //
-const { log } = require('console');
-const connectionString = process.env.ATLAS_URI || "";
-var url=process.env.URL;
 
-const config = {
-  authRequired: false,
-  auth0Logout: true,
-  secret: process.env.SECRET,
-  baseURL: url,
-  clientID: process.env.CLIENTID,
-  issuerBaseURL: process.env.ISSUERBASEURL,
-  authorizationParams: {redirect_uri:url}
-  
-};
+const connectionString = process.env.ATLAS_URI || "";
 let db;
-async function connect(){
+
+async function connect() {
   const client = new MongoClient(connectionString);
 
   let conn;
-try {
-  conn = await client.connect();
-} catch(e) {
-  console.error(e);
+  try {
+    conn = await client.connect();
+  } catch (e) {
+    console.error(e);
+  }
+  if (conn) {
+    console.log('Connected to MongoDB');
+    db = conn.db('foodItemsAPI');
+    // const totalItems = await db.collection('foo').countDocuments();
+    // console.log(totalItems)
+    // Additional initialization or logic can be performed here
+  }
 }
-if(conn){
-  console.log('hello');
-  db = conn.db("foodItemsAPI");
-}
 
-
-
-
-
-    // console.log(results)
-//  return collection;
-
-}
-connect()
-
+connect();
 
 
 
@@ -69,7 +53,7 @@ const swaggerOptions = {
     url:'https://fooditemsapi.onrender.com/',
   },
   {
-    url:'https://localhost:3000/',
+    url:'http://localhost:3000/',
   }
 ]
     ,
@@ -100,13 +84,8 @@ const swaggerSpec = swaggerJSDoc(swaggerOptions);
 const app = express();
 
 
-app.use(auth(config));
 
 
-
-app.get('/hello',(req,res)=>{
-  res.send(req.oidc.user)
-})
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
@@ -149,42 +128,32 @@ function authorizationMiddleware(req, res, next) {
 function generateAccessToken(username) {
   return jwt.sign({ username: username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 }
-app.get('/generatetoken', async (req, res) => {
-  let userId = req?.oidc?.user?.sid;
-  console.log(userId)
-  if(!userId){
-    console.log("gu");
-    res.send(" not logged in , login at - https://fooditemsapi.onrender.com/login")
-    // res.status(404).json({message:"user id not found"})
-    return
-  }
-  console.log(userId)
+app.post('/generatetoken', async (req, res) => {
+  console.log('hiii')
+  const username = req.body.username;
+  console.log(username)
 
-  // Check if the user already has an existing token in the database
-  const existingToken = await db.collection('tokens').findOne({ userId });
-  // let existingToken;
+  if (!username) {
+    return res.status(400).json({ message: 'Username is required' });
+  }
+
+  const existingToken = await db.collection('tokens').findOne({ username });
+
   if (existingToken && !isTokenExpired(existingToken.expiration)) {
     // User has an existing valid token, return it
-    res.json({accessToken:existingToken})
+    res.json({ accessToken: existingToken.token });
   } else {
     // User does not have an existing token or the existing token has expired
-    const user = {
-      id: userId,
-      username: 'exampleuser',
-      role: 'admin',
-    };
+    const token = generateAccessToken(username);
+    const expiration = (Date.now() / 1000) + 3600; // Set token expiration to 1 hour from now
 
-    // Generate a new token
-    const token = jwt.sign(user, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
-
-    // Store the new token in the database
     await db.collection('tokens').updateOne(
-      { userId },
-      { $set: { token, expiration: (Date.now() / 1000)+3600 } },
+      { username },
+      { $set: { token, expiration } },
       { upsert: true }
     );
-   
-    res.json({accessToken:token})
+
+    res.json({ accessToken: token });
   }
 });
 app.get('/profile',(req,res)=>{
@@ -198,25 +167,33 @@ app.get('/profile',(req,res)=>{
 /**
  * @swagger
  * /generatetoken:
- *   get:
- *     summary: Authenticate user and generate access token
+ *   post:
+ *     summary: Generate access token for authentication
  *     tags: [Authentication]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/x-www-form-urlencoded:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               username:
+ *                 type: string
+ *             required:
+ *               - username
  *     responses:
  *       200:
- *         description: User authenticated successfully
+ *         description: Access token generated successfully
  *         content:
  *           application/json:
  *             schema:
  *               properties:
  *                 accessToken:
  *                   type: string
- *       401:
- *         description: Invalid credentials
+ *       400:
+ *         description: Username is required
  *       500:
  *         description: Server error
- * 
- * 
- * 
  * 
  * 
  * tags:
@@ -343,6 +320,7 @@ app.get('/foodItems', authorizationMiddleware, async (req, res) => {
   const page = parseInt(req.query.page) || 1;
   const limit = parseInt(req.query.limit) || 10;
   const startIndex = (page - 1) * limit;
+  console.log(page,limit)
 
   let collection = await db.collection("foodItems");
   
@@ -354,6 +332,7 @@ app.get('/foodItems', authorizationMiddleware, async (req, res) => {
     .toArray();
 
   const totalItems = await collection.countDocuments();
+  console.log(totalItems)
 
   res.json({
     page: page,
