@@ -14,7 +14,7 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 //
 const { log } = require('console');
 const connectionString = process.env.ATLAS_URI || "";
-var url="http://localhost:3000/api-docs/";
+var url=process.env.URL;
 
 const config = {
   authRequired: false,
