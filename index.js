@@ -63,10 +63,7 @@ const swaggerOptions = {
       version: '1.0.0',
     },
     // Base path for API endpoints
-    servers: [{
-      url :'http://localhost:3000/'
-
-    },
+    servers: [
   {
     url:'https://fooditemsapi.onrender.com/',
   }
