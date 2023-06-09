@@ -11,18 +11,19 @@ const swaggerUi = require('swagger-ui-express');
 const swaggerJSDoc = require('swagger-jsdoc');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
-const { url } = require('inspector');
+
 const { log } = require('console');
 const connectionString = process.env.ATLAS_URI || "";
+var url="http://localhost:3000/api-docs/";
 
 const config = {
   authRequired: false,
   auth0Logout: true,
   secret: process.env.SECRET,
-  baseURL: 'https://fooditemsapi.onrender.com/',
+  baseURL: url,
   clientID: process.env.CLIENTID,
   issuerBaseURL: process.env.ISSUERBASEURL,
-  authorizationParams: {redirect_uri:'https://fooditemsapi.onrender.com/'}
+  authorizationParams: {redirect_uri:url}
   
 };
 let db;
@@ -66,6 +67,9 @@ const swaggerOptions = {
     servers: [
   {
     url:'https://fooditemsapi.onrender.com/',
+  },
+  {
+    url:'https://localhost:3000/',
   }
 ]
     ,
@@ -90,9 +94,7 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
-var foodItems = [];
-var orders = [];
-var a = 0;
+
 
 
 const app = express();
