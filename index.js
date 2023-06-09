@@ -22,7 +22,7 @@ const config = {
   baseURL: 'https://fooditemsapi.onrender.com/',
   clientID: process.env.CLIENTID,
   issuerBaseURL: process.env.ISSUERBASEURL,
-  authorizationParams: {redirect_uri:'https://fooditemsapi.onrender.com/profile'}
+  authorizationParams: {redirect_uri:'https://fooditemsapi.onrender.com/'}
   
 };
 let db;
