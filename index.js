@@ -147,7 +147,6 @@ function authorizationMiddleware(req, res, next) {
     res.status(401).json({ message: 'Invalid token' });
   }
 }
-
 function generateAccessToken(username) {
   return jwt.sign({ username: username }, JWT_SECRET, { expiresIn: JWT_EXPIRATION });
 }
@@ -190,6 +189,7 @@ app.get('/generatetoken', async (req, res) => {
   }
 });
 app.get('/profile',(req,res)=>{
+  console.log(req.oidc)
     res.send(req.oidc.user)
 })
 
