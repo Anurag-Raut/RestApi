@@ -11,6 +11,7 @@
     "mongodb": "^5.6.0",
     "nodemon": "^2.0.22",
     "openssl": "^2.0.0",
+    "redis": "^4.6.7",
     "swagger-autogen": "^2.23.1",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^4.6.3"

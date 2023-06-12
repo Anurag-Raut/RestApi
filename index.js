@@ -9,9 +9,24 @@ const jwt = require('jsonwebtoken');
 const rateLimit = require('express-rate-limit');
 const swaggerUi = require('swagger-ui-express');
 const swaggerJSDoc = require('swagger-jsdoc');
+const { createClient } = require('redis');
 
 const { MongoClient, ServerApiVersion } = require('mongodb');
-//
+const { resourceUsage } = require('process');
+const RedisClient = createClient({
+  url:process.env.REDIS
+});
+ RedisClient.connect();
+RedisClient.on('error', err => console.log('Redis Client Error', err));
+RedisClient.on('connect', () => {
+  console.log('Redis client connected');
+});
+
+
+
+
+
+
 
 const connectionString = process.env.ATLAS_URI || "";
 let db;
@@ -67,12 +82,12 @@ const swaggerOptions = {
     
     },
   },
-  // Path to the API routes files
+ 
   apis: ['./index.js'],
   
   
 };
-//a
+
 
 const swaggerSpec = swaggerJSDoc(swaggerOptions);
 
@@ -89,11 +104,11 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 const limiter = rateLimit({
-  windowMs: 60 * 1000, // 1 minute
-  max: 100, // maximum of 10 requests per minute
+  windowMs: 60 * 1000, 
+  max: 100, 
 });
 function isTokenExpired(expiration) {
-  const now = Date.now() / 1000; // Convert current time to seconds
+  const now = Date.now() / 1000; 
   return expiration < now;
 }
 
@@ -157,6 +172,31 @@ app.get('/profile',(req,res)=>{
   console.log(req.oidc.user)
     res.send(req.oidc.user)
 })
+
+
+
+async function redisMiddleWare (req,res,next){
+
+  const key= req.url;
+ 
+
+  await RedisClient.get(key).then(async (result)=>{
+    if(result){
+      console.log('cache Hit')
+      res.status(200).send(JSON.parse(result))
+    }
+    else{
+      console.log('cache miss')
+      next();
+    }
+  })
+}
+
+
+
+
+
+
 
 
 
@@ -313,43 +353,86 @@ app.get('/profile',(req,res)=>{
 
 
 app.get('/foodItems', authorizationMiddleware, async (req, res) => {
-  
-  const page = parseInt(req.query.page) || 1;
-  const limit = parseInt(req.query.limit) || 10;
-  const startIndex = (page - 1) * limit;
-  console.log(page,limit)
+  try
+  {
 
-  let collection = await db.collection("foodItems");
-  
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const startIndex = (page - 1) * limit;
+    console.log(page,limit)
+    const key=req.url;
+    let collection = await db.collection("foodItems");
+    const foodItems=[];
+    for(let i=startIndex;i<startIndex+limit;i++){
+      const key=  `foodItems/${i}`;
  
-  const foodItems = await collection.find()
-  .sort({ _id: 1 })
-    .skip(startIndex)
-    .limit(limit)
-    .toArray();
 
-  const totalItems = await collection.countDocuments();
-  console.log(totalItems)
+      const result= await RedisClient.get(key)
+        if(result){
+          console.log('cache Hit')
+         foodItems.push(JSON.parse(result))
+        }
+        else{
+          console.log('cache miss')
+          const item=await collection.findOne({_id:i});
+          RedisClient.set(key, JSON.stringify(item));
+          foodItems.push(item)
+         
+        }
+    
 
-  res.json({
-    page: page,
-    limit: limit,
-    totalItems: totalItems.length,
-    totalPages: Math.ceil(totalItems.length / limit),
-    data: foodItems,
-  });
+    
+  }
+ 
+   
+   
+    
+  
+    const totalItems = await collection.countDocuments();
+    console.log(totalItems)
+    const responseObj={
+      page: page,
+      limit: limit,
+      totalItems: totalItems.length,
+      totalPages: Math.ceil(totalItems.length / limit),
+      data: foodItems,
+    }
+    
+    res.json(responseObj);
+
+
+  }
+  catch (error){
+    console.error(error)
+  }
+ 
 });
 
 app.get('/foodItems/:id', authorizationMiddleware, async (req, res) => {
   const itemId = parseInt(req.params.id);
   let collection = await db.collection("foodItems");
 
+  const key=  `foodItems/${itemId}`;
+ 
+  let item;
+  const result= await RedisClient.get(key)
+    if(result){
+      item=result
+      console.log('cache Hit')
+     res.status(200).json(JSON.parse(result))
+    }
+    else{
+      console.log('cache miss')
+       item=await collection.findOne({_id:itemId});
+      RedisClient.set(key, JSON.stringify(item));
+      res.status(200).json(item)
+     
+    }
 
-  const item = await collection.findOne({ _id: itemId });
 
-  if (item) {
-    res.json(item);
-  } else {
+ 
+
+  if (!item){
     res.status(404).json({ message: 'Food item not found' });
   }
 });
@@ -357,6 +440,7 @@ app.get('/foodItems/:id', authorizationMiddleware, async (req, res) => {
 app.post('/addOrder', authorizationMiddleware,async (req, res) => {
   const itemId = parseInt(req.body.itemId);
   const quantity = parseInt(req.body.quantity);
+
   let collection = await db?.collection("foodItems");
   const item = await collection.findOne({ _id: itemId });
   console.log(req.body.itemId)
@@ -385,13 +469,28 @@ app.post('/addOrder', authorizationMiddleware,async (req, res) => {
 
 app.get('/order/:id', authorizationMiddleware, async(req, res) => {
   const id = parseInt(req.params.id);
+  const key=`orders/${id}`
   let collection = await db.collection("order");
-  const order = await collection.findOne({ _id: id });
-  if (order) {
-    res.status(200).json(order);
-  } else {
-    res.status(404).json({ message: 'Order not found' });
+  
+  const result= await RedisClient.get(key)
+  if(result){
+    console.log('cache hit')
+    res.status(200).json(JSON.parse(result))
   }
+  else{
+    console.log('cache miss')
+    const order = await collection.findOne({ _id: id });
+    if (order) {
+      await RedisClient.set(key, JSON.stringify(order));
+      res.status(200).json(order);
+    } else {
+      res.status(404).json({ message: 'Order not found' });
+    }
+
+  }
+
+ 
+ 
 });
 
 
