@@ -363,7 +363,7 @@ app.get('/foodItems', authorizationMiddleware, async (req, res) => {
     const key=req.url;
     let collection = await db.collection("foodItems");
     const foodItems=[];
-    for(let i=startIndex;i<startIndex+limit;i++){
+    for(let i=startIndex;i<=startIndex+limit;i++){
       const key=  `foodItems/${i}`;
  
 
